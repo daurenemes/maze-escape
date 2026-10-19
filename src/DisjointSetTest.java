@@ -45,7 +45,7 @@ public class DisjointSetTest {
         check(many.count() == 1, "one set after seven unions");
         check(many.connected(1, 7), "all elements are connected");
 
-        // find returns the same root for connected elements.
+        // Find returns the same root for connected elements.
         int root = many.find(0);
         check(many.find(1) == root && many.find(7) == root, "find returns the common root");
 
