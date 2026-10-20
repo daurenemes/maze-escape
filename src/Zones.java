@@ -6,6 +6,8 @@
  * of the slides that enter cell v (reversed graph). The lists hold slide numbers i; the cell at the other end is s.to()[i]
  * or s.from()[i].
  */
+import java.util.*;
+
 public class Zones {
 
     /**
@@ -19,8 +21,80 @@ public class Zones {
      * Is DAG in Main is 1 when the number of zones equals the number of cells (no cycle), so you do not need a separate check.
      */
     public static int[] kosaraju(Input.Slides s) {
-        // TODO
-        return new int[s.n()];
+        int n = s.n();
+
+        int[][] from = Graphs.slidesFrom(s);
+        int[][] into = Graphs.slidesInto(s);
+
+        boolean[] visited = new boolean[n];
+        int[] order = new int[n];
+        int orderSize = 0;
+
+        // First pass: DFS on the original graph.
+        int[] stack = new int[n];
+        int[] nextIndex = new int[n];
+
+        for (int start = 0; start < n; start++) {
+            if (visited[start]) {
+                continue;
+            }
+
+            int top = 0;
+            stack[top++] = start;
+            visited[start] = true;
+
+            while (top > 0) {
+                int cell = stack[top - 1];
+
+                if (nextIndex[cell] < from[cell].length) {
+                    int slide = from[cell][nextIndex[cell]++];
+                    int next = s.to()[slide];
+
+                    if (!visited[next]) {
+                        visited[next] = true;
+                        stack[top++] = next;
+                    }
+                } else {
+                    order[orderSize++] = cell;
+                    top--;
+                }
+            }
+        }
+
+        // Second pass: DFS on the reversed graph.
+        int[] zoneOf = new int[n];
+        java.util.Arrays.fill(zoneOf, -1);
+
+        int zone = 0;
+
+        for (int i = orderSize - 1; i >= 0; i--) {
+            int start = order[i];
+
+            if (zoneOf[start] != -1) {
+                continue;
+            }
+
+            int top = 0;
+            stack[top++] = start;
+            zoneOf[start] = zone;
+
+            while (top > 0) {
+                int cell = stack[--top];
+
+                for (int slide : into[cell]) {
+                    int next = s.from()[slide];
+
+                    if (zoneOf[next] == -1) {
+                        zoneOf[next] = zone;
+                        stack[top++] = next;
+                    }
+                }
+            }
+
+            zone++;
+        }
+
+        return zoneOf;
     }
 
     /**
@@ -29,8 +103,70 @@ public class Zones {
      * [0] flow stages: the number of zones on the longest chain of zones;
      * [1] the cost of the cheapest route from the zone of cell 0 to the zone of the last cell.
      */
-    public static long[] routes(Input.Slides s, int[] zoneOf, int zoneCount) {
-        // TODO
-        return new long[]{0, 0};
+    public static long[] routes(
+            Input.Slides s, int[] zoneOf, int zoneCount) {
+
+        @SuppressWarnings("unchecked")
+        Map<Integer, Integer>[] edges = new HashMap[zoneCount];
+
+        // Build the graph of zones.
+        for (int i = 0; i < s.count(); i++) {
+            int fromZone = zoneOf[s.from()[i]];
+            int toZone = zoneOf[s.to()[i]];
+
+            // Slides inside the same zone cost nothing.
+            if (fromZone == toZone) {
+                continue;
+            }
+
+            if (edges[fromZone] == null) {
+                edges[fromZone] = new HashMap<>();
+            }
+
+            int cost = s.time()[i];
+            edges[fromZone].merge(
+                    toZone, cost, Math::min);
+        }
+
+        // Longest chain of zones.
+        long[] stages = new long[zoneCount];
+        java.util.Arrays.fill(stages, 1);
+
+        // Cheapest route from zone 0.
+        long INF = Long.MAX_VALUE / 4;
+        long[] cheapest = new long[zoneCount];
+        java.util.Arrays.fill(cheapest, INF);
+        cheapest[zoneOf[0]] = 0;
+
+        long maxStages = 1;
+
+        // Zone IDs are already in topological order.
+        for (int z = 0; z < zoneCount; z++) {
+            maxStages = Math.max(maxStages, stages[z]);
+
+            if (edges[z] == null) {
+                continue;
+            }
+
+            for (Map.Entry<Integer, Integer> edge
+                    : edges[z].entrySet()) {
+
+                int next = edge.getKey();
+                int cost = edge.getValue();
+
+                stages[next] = Math.max(
+                        stages[next], stages[z] + 1);
+
+                if (cheapest[z] != INF) {
+                    cheapest[next] = Math.min(
+                            cheapest[next], cheapest[z] + cost);
+                }
+            }
+        }
+
+        return new long[]{
+                maxStages,
+                cheapest[zoneOf[s.n() - 1]]
+        };
     }
 }
